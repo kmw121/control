@@ -11,6 +11,7 @@ export default function Home() {
   const socketRef = useRef<any>(null);
   const { message, showMessage } = useDebouncedMessage(2000);
   const [chatInput, setChatInput] = useState("");
+  const [dataReady, setDataReady] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const { themes, setThemes, getThemes, updateTheme, saveThemes } =
@@ -25,6 +26,7 @@ export default function Home() {
     updateProgress,
     loadProgressFromServer,
     setNewChat,
+    applySnapshot,
   } = useThemeProgressStore();
 
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
@@ -78,19 +80,48 @@ export default function Home() {
       }));
 
       setConnectionStatus(initialStatus);
+      setDataReady(true);
     };
     loadThemes();
   }, []);
 
   useEffect(() => {
+    if (!dataReady) return;
     const socket = getSocket();
     socketRef.current = socket;
-    socket.emit("register", { type: "control" });
+    socket.emit("register", { type: "control" }, () => {
+      getProgress().forEach((progress) => {
+        socket.emit("seedState", {
+          ...progress,
+          isRunning: progress.isRunning,
+          remainingTime:
+            progress.isRunning === 1
+              ? Math.max(0, progress.endTime - Date.now())
+              : progress.endTime,
+        });
+      });
+    });
 
     socket.on("status", ({ themeCode, status, data }) => {
       console.log({ themeCode, status, data });
-      if (status == "usedHint") {
-        updateProgress(themeCode, { hintCount: data }, false, "");
+      if (status === "stateSnapshot") {
+        const snapshot = data?.snapshot;
+        if (snapshot) {
+          const before = getProgress().find((item) => item.themeCode === themeCode);
+          applySnapshot(snapshot);
+          if (
+            before &&
+            Array.isArray(snapshot.chatData) &&
+            snapshot.chatData.length > before.chatData.length
+          ) {
+            playSound();
+            if (themeCode !== selectedCodeRef.current) setNewChat(themeCode, true);
+          }
+        }
+      } else if (status === "initialSnapshots") {
+        (Array.isArray(data) ? data : []).forEach(applySnapshot);
+      } else if (status == "usedHint") {
+        sendStateAction(themeCode, { type: "useHint", hintCount: Number(data || 0) });
       } else if (status == "chat") {
         data.sort(
           (
@@ -98,12 +129,36 @@ export default function Home() {
             b: { type: "client" | "server"; data: string; createdAt: string }
           ) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
-        updateProgress(themeCode, { chatData: data }, false, "");
+        sendStateAction(themeCode, { type: "replaceChat", chatData: data });
         playSound();
         if (themeCode !== selectedCodeRef.current) {
           setNewChat(themeCode, true);
         }
-      } else if (status == "requestSync") {
+      } else if (status === "requestSync") {
+        // Legacy clients may still ask for sync. Never merge their whole local
+        // history into control state; send the current official snapshot down.
+        const current = getProgress().find((item) => item.themeCode === themeCode);
+        const theme = getThemes().find((item) => item.themeCode === themeCode);
+        if (current && theme) {
+          sendToHintApp(
+            "doSync",
+            {
+              generation: current.generation,
+              revision: current.revision,
+              chatData: current.chatData,
+              hintCount: current.hintCount,
+              usedHintCodes: current.usedHintCodes,
+              progress: theme.progress[current.progressIndex],
+              remainingTime:
+                current.isRunning === 1
+                  ? Math.max(0, current.endTime - Date.now())
+                  : current.endTime,
+              isRunning: current.isRunning,
+            },
+            themeCode
+          );
+        }
+      } else if (status === "legacyRequestSyncDisabled") {
         const { chatData, hintCount } = data;
 
         const themeProgress = getProgress();
@@ -211,7 +266,11 @@ export default function Home() {
         updateTheme(themeCode, data);
         saveThemes();
       } else if (status === "reset") {
-        resetTimer(themeCode);
+        const theme = getThemes().find((item) => item.themeCode === themeCode);
+        const durationMs = theme
+          ? (theme.durationMinutes * 60 + theme.durationSeconds) * 1000
+          : 0;
+        sendStateAction(themeCode, { type: "reset", durationMs });
       } else if (status === "requestStart") {
         console.log("리퀘스트스타트");
         handleStartByApp(themeCode);
@@ -227,7 +286,7 @@ export default function Home() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [dataReady]);
 
   useEffect(() => {
     const currentProgress = themeProgress.find(
@@ -264,6 +323,22 @@ export default function Home() {
     });
   };
 
+  const sendStateAction = (
+    themeCode: string,
+    action: Record<string, any>,
+    onDone?: (response: any) => void
+  ) => {
+    const requestId = `${action.type}:${themeCode}:${Date.now()}:${Math.random()}`;
+    socketRef.current?.emit(
+      "stateAction",
+      { themeCode, requestId, action },
+      (response: any) => {
+        if (response?.snapshot) applySnapshot(response.snapshot);
+        onDone?.(response);
+      }
+    );
+  };
+
   const handleStart = () => {
     if (!selectedTheme || !selectedCode) return;
     const currentProgress = themeProgress.find(
@@ -275,8 +350,7 @@ export default function Home() {
         : (selectedTheme.durationMinutes * 60 + selectedTheme.durationSeconds) *
           1000;
 
-    const calculTime = startTimer(selectedCode, ms);
-    sendToHintApp("startTimer", { remainingTime: calculTime });
+    sendStateAction(selectedCode, { type: "start", durationMs: ms });
   };
 
   const handleStartByApp = (themeCode: string) => {
@@ -297,15 +371,18 @@ export default function Home() {
       (selectedTheme.durationMinutes * 60 + selectedTheme.durationSeconds) *
       1000;
 
-    const calculTime = startTimer(themeCode, ms);
-
-    sendToHintApp("startTimer", { remainingTime: calculTime }, themeCode);
+    sendStateAction(themeCode, { type: "start", durationMs: ms });
   };
 
   const handleStop = () => {
     if (!selectedCode) return;
-    stopTimer(selectedCode);
-    sendToHintApp("stopTimer", {});
+    const current = themeProgress.find((item) => item.themeCode === selectedCode);
+    sendStateAction(selectedCode, {
+      type: "stop",
+      remainingTime: current?.isRunning === 1
+        ? Math.max(0, (current?.endTime || 0) - Date.now())
+        : current?.endTime || 0,
+    });
   };
 
   const handleReset = () => {
@@ -314,8 +391,9 @@ export default function Home() {
       `${selectedTheme.themeTitle}의 진행 데이터가 초기화 됩니다. 정말 초기화 하시겠습니까?`
     );
     setOnConfirm(() => () => {
-      resetTimer(selectedCode);
-      sendToHintApp("reset", {});
+      const durationMs =
+        (selectedTheme.durationMinutes * 60 + selectedTheme.durationSeconds) * 1000;
+      sendStateAction(selectedCode, { type: "reset", durationMs });
       setShowModal(false);
     });
     setShowModal(true);
@@ -330,14 +408,11 @@ export default function Home() {
     const remainingTime = newEndTime - Date.now();
     const isRunning = current.isRunning;
 
-    updateProgress(
-      selectedCode,
-      { endTime: newEndTime, isRunning },
-      true,
-      "changeTime",
-      undefined,
-      current.isRunning == 2 ? newEndTime : remainingTime
-    );
+    sendStateAction(selectedCode, {
+      type: "changeTime",
+      remainingTime: current.isRunning === 2 ? newEndTime : remainingTime,
+      isRunning,
+    });
   };
 
   const adjustProgressIndex = (delta: number) => {
@@ -347,28 +422,28 @@ export default function Home() {
       0,
       Math.min(maxIndex, selectedProgress.progressIndex + delta)
     );
-    updateProgress(
-      selectedCode,
-      { progressIndex: newIndex },
-      true,
-      "changeProgress",
-      selectedTheme.progress[newIndex]
-    );
+    sendStateAction(selectedCode, {
+      type: "changeProgress",
+      progressIndex: newIndex,
+      progress: selectedTheme.progress[newIndex],
+    });
   };
 
   const handleSendChat = () => {
     if (!chatInput.trim() || !selectedCode) return;
     const current = themeProgress.find((p) => p.themeCode === selectedCode);
     if (!current) return;
-    const newChat = [
-      ...(current.chatData || []),
-      {
-        type: "server" as const,
+    const createdAt = new Date().toISOString();
+    sendStateAction(selectedCode, {
+      type: "appendChat",
+      message: {
+        id: `server:${createdAt}:${Math.random()}`,
+        generation: current.generation,
+        type: "server",
         data: chatInput,
-        createdAt: new Date().toISOString(),
+        createdAt,
       },
-    ];
-    updateProgress(selectedCode, { chatData: newChat }, true, "changeChat");
+    });
     setChatInput("");
   };
 

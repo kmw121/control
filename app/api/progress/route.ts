@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 
 const FILE_PATH = path.join(process.cwd(), "data", "progress.json");
+const TEMP_FILE_PATH = path.join(process.cwd(), "data", "progress.tmp.json");
 
 export async function GET() {
   try {
@@ -16,7 +17,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    fs.writeFileSync(FILE_PATH, JSON.stringify(body, null, 2));
+    fs.writeFileSync(TEMP_FILE_PATH, JSON.stringify(body, null, 2));
+    fs.renameSync(TEMP_FILE_PATH, FILE_PATH);
 
     return NextResponse.json({ status: "ok" });
   } catch {
