@@ -1,128 +1,78 @@
 [
   {
-    "themeCode": "story",
+    "themeCode": "bunk",
+    "generation": "13d715b1-8525-43e2-ae8a-e283eaf6e04d",
+    "revision": 0,
+    "startedAt": null,
     "endTime": 0,
     "progressIndex": 0,
     "hintCount": 0,
+    "usedHintCodes": [],
     "isRunning": 0,
     "chatData": [],
     "newChat": false
   },
   {
-    "themeCode": "cell",
+    "themeCode": "pok",
+    "generation": "legacy",
+    "revision": 0,
+    "startedAt": null,
     "endTime": 0,
     "progressIndex": 0,
     "hintCount": 0,
+    "usedHintCodes": [],
     "isRunning": 0,
     "chatData": [],
     "newChat": false
   },
   {
-    "themeCode": "hotel",
+    "themeCode": "power",
+    "generation": "legacy",
+    "revision": 0,
+    "startedAt": null,
     "endTime": 0,
     "progressIndex": 0,
     "hintCount": 0,
+    "usedHintCodes": [],
     "isRunning": 0,
     "chatData": [],
     "newChat": false
   },
   {
-    "themeCode": "moon",
+    "themeCode": "invi",
+    "generation": "legacy",
+    "revision": 0,
+    "startedAt": null,
     "endTime": 0,
     "progressIndex": 0,
     "hintCount": 0,
-    "isRunning": 0,
-    "chatData": [
-      {
-        "type": "server",
-        "data": "6256",
-        "createdAt": "2026-08-23T15:51:43.809Z"
-      },
-      {
-        "type": "client",
-        "data": "포ㅠㅗ",
-        "createdAt": "2026-08-23T15:51:49.454Z"
-      }
-    ],
-    "newChat": false
-  },
-  {
-    "themeCode": "need",
-    "endTime": 0,
-    "progressIndex": 0,
-    "hintCount": 0,
+    "usedHintCodes": [],
     "isRunning": 0,
     "chatData": [],
     "newChat": false
   },
   {
-    "themeCode": "art",
+    "themeCode": "hosp",
+    "generation": "1c835ebc-b361-4744-a471-7343d2ecf23d",
+    "revision": 0,
+    "startedAt": null,
     "endTime": 0,
     "progressIndex": 0,
     "hintCount": 0,
+    "usedHintCodes": [],
     "isRunning": 0,
     "chatData": [],
     "newChat": false
   },
   {
-    "themeCode": "miss",
+    "themeCode": "doll",
+    "generation": "legacy",
+    "revision": 0,
+    "startedAt": null,
     "endTime": 0,
     "progressIndex": 0,
     "hintCount": 0,
-    "isRunning": 0,
-    "chatData": [
-      {
-        "type": "server",
-        "data": "ㅇㅂㅈㅂㅈㅈㅇㅂ",
-        "createdAt": "2026-08-23T15:16:17.136Z"
-      },
-      {
-        "type": "client",
-        "data": "ㅎ5ㅎ54ㅎ55ㅎ4ㅎ5",
-        "createdAt": "2026-08-23T15:16:24.326Z"
-      }
-    ],
-    "newChat": false
-  },
-  {
-    "themeCode": "agape",
-    "endTime": 0,
-    "progressIndex": 0,
-    "hintCount": 0,
-    "isRunning": 0,
-    "chatData": [
-      {
-        "type": "client",
-        "data": "ㅗㅝㅜ",
-        "createdAt": "2026-08-23T15:51:06.019Z"
-      },
-      {
-        "type": "server",
-        "data": "65165",
-        "createdAt": "2026-08-23T15:51:10.038Z"
-      },
-      {
-        "type": "server",
-        "data": "516",
-        "createdAt": "2026-08-23T15:51:11.795Z"
-      }
-    ],
-    "newChat": false
-  },
-  {
-    "themeCode": "seq",
-    "endTime": 0,
-    "progressIndex": 0,
-    "hintCount": 0,
-    "isRunning": 0,
-    "chatData": [],
-    "newChat": false
-  },
-  {
-    "themeCode": "night",
-    "endTime": 0,
-    "progressIndex": 0,
-    "hintCount": 0,
+    "usedHintCodes": [],
     "isRunning": 0,
     "chatData": [],
     "newChat": false

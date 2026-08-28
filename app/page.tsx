@@ -7,6 +7,16 @@ import { useRemainingTime } from "@/hooks/useRemainingTime";
 import { getSocket } from "@/utils/socketClient";
 import { useDebouncedMessage } from "@/hooks/useDebouncedMessage";
 
+const getChatKey = (chat: ChatEntry) =>
+  chat.id || `${chat.type}:${chat.createdAt}:${chat.data}`;
+
+const hasNewClientChat = (previous: ChatEntry[], next: ChatEntry[]) => {
+  const previousKeys = new Set(previous.map(getChatKey));
+  return next.some(
+    (chat) => chat.type === "client" && !previousKeys.has(getChatKey(chat))
+  );
+};
+
 export default function Home() {
   const socketRef = useRef<any>(null);
   const { message, showMessage } = useDebouncedMessage(2000);
@@ -112,7 +122,7 @@ export default function Home() {
           if (
             before &&
             Array.isArray(snapshot.chatData) &&
-            snapshot.chatData.length > before.chatData.length
+            hasNewClientChat(before.chatData, snapshot.chatData)
           ) {
             playSound();
             if (themeCode !== selectedCodeRef.current) setNewChat(themeCode, true);
@@ -130,10 +140,6 @@ export default function Home() {
           ) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
         sendStateAction(themeCode, { type: "replaceChat", chatData: data });
-        playSound();
-        if (themeCode !== selectedCodeRef.current) {
-          setNewChat(themeCode, true);
-        }
       } else if (status === "requestSync") {
         // Legacy clients may still ask for sync. Never merge their whole local
         // history into control state; send the current official snapshot down.
@@ -595,7 +601,7 @@ export default function Home() {
                   className="flex-1 bg-green-600 text-white rounded py-2 hover:opacity-90 cursor-pointer"
                   onClick={handleStart}
                 >
-                  스타트
+                  시작
                 </button>
               )}
               <button
@@ -717,7 +723,7 @@ export default function Home() {
           <div className="mt-2">
             <input
               className="w-full border px-3 py-2 rounded text-sm"
-              placeholder="채팅 입력 후 Enter"
+              placeholder="채팅 입력 후 엔터"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
@@ -766,13 +772,13 @@ export default function Home() {
                     {remain}
                   </span>
 
-                  {/* 오른쪽: ON / OFF */}
+                  {/* 오른쪽: 연결 상태 */}
                   <span
                     className={`flex-1 text-right text-sm font-extrabold tracking-[0.2em] ${
                       isConn ? "text-blue-600" : "text-red-600"
                     }`}
                   >
-                    {isConn ? "ON" : "OFF"}
+                    {isConn ? "접속" : "미접속"}
                   </span>
                 </li>
               );
