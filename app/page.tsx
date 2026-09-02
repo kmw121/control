@@ -533,7 +533,7 @@ export default function Home() {
           if (runningStatus === 1 && isSelected) {
             className += "bg-green-700 text-white";
           } else if (runningStatus === 1) {
-            className += "bg-green-200 text-black";
+            className += "bg-green-300 text-black";
           } else if (runningStatus === 2 && isSelected) {
             className += "bg-red-700 text-white";
           } else if (runningStatus === 2) {
