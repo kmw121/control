@@ -17,6 +17,15 @@ const hasNewClientChat = (previous: ChatEntry[], next: ChatEntry[]) => {
   );
 };
 
+type BlackoutStatus = {
+  themeCode: string;
+  active: boolean;
+  expiresAt: number | null;
+  revision: number;
+  appConnected: boolean;
+  applied: boolean;
+};
+
 export default function Home() {
   const socketRef = useRef<any>(null);
   const { message, showMessage } = useDebouncedMessage(2000);
@@ -46,6 +55,8 @@ export default function Home() {
   const [connectionStatus, setConnectionStatus] = useState<
     { themeCode: string; isConnected: boolean }[]
   >([]);
+  const [blackoutByTheme, setBlackoutByTheme] = useState<Record<string, BlackoutStatus>>({});
+  const [blackoutSeconds, setBlackoutSeconds] = useState("30");
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -114,7 +125,21 @@ export default function Home() {
 
     socket.on("status", ({ themeCode, status, data }) => {
       console.log({ themeCode, status, data });
-      if (status === "stateSnapshot") {
+      if (status === "initialBlackouts") {
+        setBlackoutByTheme(Object.fromEntries(
+          (Array.isArray(data) ? data : []).map((state: BlackoutStatus) => [state.themeCode, state])
+        ));
+      } else if (status === "blackoutState" && themeCode) {
+        setBlackoutByTheme((previous) => ({ ...previous, [themeCode]: data }));
+      } else if (status === "blackoutApplied" && themeCode) {
+        setBlackoutByTheme((previous) => {
+          const current = previous[themeCode];
+          if (!current || current.revision !== data?.revision) return previous;
+          return { ...previous, [themeCode]: { ...current, applied: true } };
+        });
+      } else if (status === "blackoutError") {
+        showMessage(String(data));
+      } else if (status === "stateSnapshot") {
         const snapshot = data?.snapshot;
         if (snapshot) {
           const before = getProgress().find((item) => item.themeCode === themeCode);
@@ -304,9 +329,15 @@ export default function Home() {
   }, [themeProgress, selectedCode]);
 
   const selectedTheme = themes.find((t) => t.themeCode === selectedCode);
+  const selectedBlackout = selectedCode ? blackoutByTheme[selectedCode] : undefined;
   const selectedProgress = themeProgress.find(
     (p) => p.themeCode === selectedCode
   );
+
+  useEffect(() => {
+    setBlackoutSeconds(String(selectedTheme?.lightOffTime && selectedTheme.lightOffTime > 0
+      ? selectedTheme.lightOffTime : 30));
+  }, [selectedCode, selectedTheme?.lightOffTime]);
 
   useEffect(() => {
     selectedCodeRef.current = selectedCode;
@@ -662,21 +693,34 @@ export default function Home() {
                 동기화
               </button>
             </div>
-            {selectedTheme.lightOffTime > 0 && (
-              <div className="mt-3">
-                <button
-                  className="w-full bg-black text-white py-2 rounded hover:bg-gray-800 cursor-pointer"
-                  onClick={() =>
-                    sendToHintApp("lightOff", {
-                      themeCode: selectedCode,
-                      lightOffTime: selectedTheme.lightOffTime,
-                    })
+            <div className="mt-3 rounded border border-gray-300 p-2">
+              <label className="block text-sm font-semibold" htmlFor="blackoutSeconds">라이트·화면 암전 시간 (초)</label>
+              <input id="blackoutSeconds" type="number" min="1" max="86400"
+                value={blackoutSeconds} onChange={(event) => setBlackoutSeconds(event.target.value)}
+                className="w-full border rounded px-2 py-1 mt-1" />
+              <button className="w-full bg-black text-white py-2 rounded mt-2 cursor-pointer"
+                onClick={() => {
+                  const duration = Number(blackoutSeconds);
+                  if (!Number.isSafeInteger(duration) || duration < 1 || duration > 86400) {
+                    showMessage("암전 시간은 1~86400초로 입력하세요.");
+                    return;
                   }
-                >
-                  라이트 암전
-                </button>
-              </div>
-            )}
+                  sendToHintApp("lightOff", { duration });
+                }}>암전 시작</button>
+              {selectedBlackout?.active && (
+                <button className="w-full bg-gray-600 text-white py-2 rounded mt-2 cursor-pointer"
+                  onClick={() => sendToHintApp("lightOn", {})}>암전 해제</button>
+              )}
+              {selectedBlackout?.active && (
+                <p className="text-sm mt-2" role="status">
+                  {selectedBlackout.appConnected
+                    ? selectedBlackout.applied ? "앱 적용 응답 수신" : "앱 적용 응답 대기 중"
+                    : "앱 연결 끊김 · 재접속 시 암전 적용"}
+                  {selectedBlackout.expiresAt
+                    ? ` · ${new Date(selectedBlackout.expiresAt).toLocaleTimeString("ko-KR")} 종료 예정` : ""}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
